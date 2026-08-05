@@ -206,6 +206,10 @@
       <div class="section-title">Embudo</div>
       <div class="kpi-grid">
         <div class="kpi-card">
+          <div class="kpi-label">Mensajes (Meta Ads)</div>
+          <div class="kpi-value" id="kpiMsgsFunnel">—</div>
+        </div>
+        <div class="kpi-card">
           <div class="kpi-label">Contactos Lya</div>
           <div class="kpi-value" id="kpiLya">—</div>
         </div>
@@ -214,7 +218,7 @@
           <div class="kpi-value" id="kpiCli">—</div>
         </div>
         <div class="kpi-card ring-card">
-          <div class="kpi-label" style="margin-bottom:6px;">Conversión Lya → Cliente</div>
+          <div class="kpi-label" style="margin-bottom:6px;">Conversión Mensaje → Cliente</div>
           <div class="ring-wrap">
             <svg class="ring-svg" width="88" height="88" viewBox="0 0 88 88">
               <circle class="ring-bg" cx="44" cy="44" r="38"></circle>
@@ -230,9 +234,19 @@
       <div class="funnel-wrap">
         <div class="funnel-steps">
           <div class="funnel-step">
+            <div class="funnel-eyebrow">Mensajes</div>
+            <div class="funnel-value" id="fMsgs">—</div>
+            <div class="funnel-bar-track"><div class="funnel-bar-fill" id="fBarMsgs" style="width:100%"></div></div>
+            <div class="funnel-cost">Costo / mensaje <b id="fCostMsgs">—</b></div>
+          </div>
+          <div class="funnel-arrow" id="fArrow0"><span id="fArrow0Text">→</span>
+            <div class="funnel-arrow-sub" id="fArrow0Sub"></div>
+          </div>
+          <div class="funnel-step">
             <div class="funnel-eyebrow">Contactos Lya</div>
             <div class="funnel-value" id="fLya">—</div>
-            <div class="funnel-bar-track"><div class="funnel-bar-fill" id="fBarLya" style="width:100%"></div></div>
+            <div class="funnel-bar-track"><div class="funnel-bar-fill" id="fBarLya"></div></div>
+            <div class="funnel-cost">Costo / contacto <b id="fCostLya">—</b></div>
           </div>
           <div class="funnel-arrow" id="fArrow1"><span id="fArrow1Text">→</span>
             <div class="funnel-arrow-sub" id="fArrow1Sub"></div>
@@ -250,7 +264,7 @@
       <div class="section-title">Volumen diario</div>
       <div class="chart-card">
         <div class="chart-card-head">
-          <h3>Contactos Lya · Clientes</h3>
+          <h3>Mensajes · Contactos Lya · Clientes</h3>
           <div class="mini-toggle" id="toggleMA">
             <button data-ma="0" class="active">Diario</button>
             <button data-ma="7">Prom. 7 días</button>
@@ -260,14 +274,20 @@
       </div>
 
       <div class="caption" style="margin-top:6px;">El % de conversión día a día no es un buen indicador aquí — el ciclo de venta toma semanas, así que casi siempre da 0%. Para ver conversión real, entra a la vista <b>Mensual · Cohortes</b>.</div>
+
+      <div class="section-title">Detalle diario</div>
+      <div class="caption">Mensajes que llegaron ese día, contactos que Lya alcanzó a perfilar, y clientes que cerraron ese día (el cierre casi nunca es el mismo día del mensaje — el ciclo de venta toma semanas).</div>
+      <div class="chart-card" style="padding:10px 22px 22px;">
+        <table><thead><tr id="dailyTableHead"></tr></thead><tbody id="dailyTable"></tbody></table>
+      </div>
     </div>
 
     <!-- ===================== MENSUAL · COHORTES ===================== -->
     <div class="view" id="view-mensual">
       <div class="section-title">Resumen mensual</div>
-      <div class="caption">Contactos que entraron por Lya cada mes vs. clientes que convirtieron ese mismo mes. Es una comparación de volumen, no una cohorte estricta (un cliente de este mes pudo haber llegado por Lya en un mes anterior).</div>
+      <div class="caption">Mensajes que llegaron por Meta Ads, contactos que Lya alcanzó a perfilar, y clientes que cerraron ese mes. El % es Mensaje → Lya (ventana corta, tiene sentido comparar el mismo mes). El % Lya → Cliente NO se muestra aquí como cociente simple porque el cierre casi nunca es del mismo mes que el contacto — para esa tasa real usa la cohorte de abajo.</div>
       <div class="chart-card">
-        <div class="chart-card-head"><h3>Contactos vs. Clientes por mes</h3></div>
+        <div class="chart-card-head"><h3>Mensajes · Contactos Lya · Clientes por mes</h3></div>
         <div class="chart-holder"><canvas id="chartMensual"></canvas></div>
       </div>
       <div class="chart-card" style="padding:10px 22px 22px;">
@@ -478,6 +498,8 @@ function initDashboard(){
   const histLya = MAESTRO.filter(esLya).length;
   const histCli = MAESTRO.filter(esCliente).length;
   const histLyaCliPct = histLya ? (histCli/histLya*100) : 0;
+  const histMsgs = FB.reduce((a,r)=>a+r.msgs,0);
+  const histMsgLyaPct = histMsgs ? (histLya/histMsgs*100) : 0;
 
   const globalMaxDate = MAESTRO.reduce((max,e)=>{
     [e.lya, e.cliente].forEach(k=>{ if(k && (!max || k>max)) max = k; });
@@ -517,18 +539,20 @@ function initDashboard(){
   function inRange(k, start, end){ return k && k >= start && k <= end; }
   function movingAvg(arr, w){ if(w<=1) return arr; const out=[]; for(let i=0;i<arr.length;i++){ const s=Math.max(0,i-w+1); const sl=arr.slice(s,i+1); out.push(sl.reduce((a,b)=>a+b,0)/sl.length); } return out; }
 
-  function buildDailySeries(start, end){
-    const dLya={}, dCli={};
+  function buildDailySeries(start, end, fbF){
+    const dLya={}, dCli={}, dMsgs={};
     MAESTRO.forEach(e=>{
       if(e.lya && inRange(e.lya,start,end)) dLya[e.lya]=(dLya[e.lya]||0)+1;
       if(e.cliente && inRange(e.cliente,start,end)) dCli[e.cliente]=(dCli[e.cliente]||0)+1;
     });
-    const allDates = new Set([...Object.keys(dLya),...Object.keys(dCli)]);
+    fbF.forEach(r=>{ dMsgs[r.fecha]=(dMsgs[r.fecha]||0)+r.msgs; });
+    const allDates = new Set([...Object.keys(dLya),...Object.keys(dCli),...Object.keys(dMsgs)]);
     const labels = [...allDates].sort();
     return {
       labels,
       lya: labels.map(d=>dLya[d]||0),
       cli: labels.map(d=>dCli[d]||0),
+      msgs: labels.map(d=>dMsgs[d]||0),
     };
   }
 
@@ -536,40 +560,51 @@ function initDashboard(){
     const [start, end] = computeRange();
     document.getElementById('rangeLabel').textContent = 'Mostrando ' + start + ' → ' + end;
 
-    const s = buildDailySeries(start, end);
+    const fbF = FB.filter(r=>inRange(r.fecha,start,end));
+    const s = buildDailySeries(start, end, fbF);
     const totalLya = s.lya.reduce((a,b)=>a+b,0);
     const totalCli = s.cli.reduce((a,b)=>a+b,0);
-
-    const fbF = FB.filter(r=>inRange(r.fecha,start,end));
     const totalSpend = fbF.reduce((a,r)=>a+r.spend,0);
     const totalMsgs = fbF.reduce((a,r)=>a+r.msgs,0);
 
+    const pctMsgLya = totalMsgs ? (totalLya/totalMsgs*100) : 0;
     const pctLyaCli = totalLya ? (totalCli/totalLya*100) : 0;
+    const pctMsgCli = totalMsgs ? (totalCli/totalMsgs*100) : 0;
     const costPerMsg = totalMsgs ? totalSpend/totalMsgs : NaN;
+    const costPerLya = totalLya ? totalSpend/totalLya : NaN;
     const costPerCli = totalCli ? totalSpend/totalCli : NaN;
 
+    document.getElementById('kpiMsgsFunnel').textContent = fmtInt(totalMsgs);
     document.getElementById('kpiLya').textContent = fmtInt(totalLya);
     document.getElementById('kpiCli').textContent = fmtInt(totalCli);
-    document.getElementById('kpiConv').textContent = pctLyaCli.toFixed(1)+'%';
+    document.getElementById('kpiConv').textContent = pctMsgCli.toFixed(1)+'%';
     const RING_CIRC = 238.76;
-    document.getElementById('ringConv').style.strokeDashoffset = RING_CIRC - (RING_CIRC * Math.min(pctLyaCli,100) / 100);
+    document.getElementById('ringConv').style.strokeDashoffset = RING_CIRC - (RING_CIRC * Math.min(pctMsgCli,100) / 100);
 
     document.getElementById('statPills').innerHTML = `
+      <div class="stat-pill">Mensaje → Lya (rango) <span class="pct">${pctMsgLya.toFixed(1)}%</span></div>
+      <div class="stat-pill">Mensaje → Lya (histórico) <span class="pct">${histMsgLyaPct.toFixed(1)}%</span></div>
       <div class="stat-pill">Lya → Cliente (rango) <span class="pct">${pctLyaCli.toFixed(1)}%</span></div>
       <div class="stat-pill">Lya → Cliente (histórico) <span class="pct">${histLyaCliPct.toFixed(1)}%</span></div>
       <div class="stat-pill light">Costo/cliente <span class="pct">${fmtCOP(costPerCli)}</span></div>
     `;
 
+    document.getElementById('fMsgs').textContent = fmtInt(totalMsgs);
     document.getElementById('fLya').textContent = fmtInt(totalLya);
     document.getElementById('fCli').textContent = fmtInt(totalCli);
-    document.getElementById('fBarCli').style.width = totalLya ? Math.max(4,Math.min(100,pctLyaCli))+'%' : '4%';
+    document.getElementById('fBarLya').style.width = totalMsgs ? Math.max(4,Math.min(100,pctMsgLya))+'%' : '4%';
+    document.getElementById('fBarCli').style.width = totalMsgs ? Math.max(4,Math.min(100,pctMsgCli))+'%' : '4%';
 
+    document.getElementById('fArrow0Text').textContent = totalMsgs ? pctMsgLya.toFixed(1)+'%' : '—';
+    document.getElementById('fArrow0Sub').textContent = 'histórico: '+histMsgLyaPct.toFixed(1)+'%';
     document.getElementById('fArrow1Text').textContent = totalLya ? pctLyaCli.toFixed(1)+'%' : '—';
     document.getElementById('fArrow1Sub').textContent = 'histórico: '+histLyaCliPct.toFixed(1)+'%';
 
+    document.getElementById('fCostMsgs').textContent = fmtCOP(costPerMsg);
+    document.getElementById('fCostLya').textContent = fmtCOP(costPerLya);
     document.getElementById('fCostCli').textContent = fmtCOP(costPerCli);
     document.getElementById('funnelNote').textContent =
-      'La conversión del rango se calcula sobre el mismo periodo (Lya y Cliente pueden no ser del mismo día — el ciclo de venta toma semanas). Costo/cliente = inversión total en Meta Ads del rango ÷ clientes nuevos del rango. Estimado agregado (blended), no atribución por anuncio.';
+      'Cada etapa se cuenta sobre su propia fecha dentro del rango (mensaje del día, contacto Lya del día, cliente que cerró ese día) — no son necesariamente las mismas personas, porque el ciclo de venta toma semanas. El % histórico (todo el tiempo) es la referencia más estable. Costo por etapa = inversión total en Meta Ads del rango ÷ nuevos de esa etapa. Estimado agregado (blended), no atribución por anuncio.';
 
     document.getElementById('kpiSpend').textContent = fmtCOP(totalSpend);
     document.getElementById('kpiMsgs').textContent = fmtInt(totalMsgs);
@@ -580,6 +615,7 @@ function initDashboard(){
     } else {
       try{ renderTrendCharts(s); } catch(err){ console.error('Error en gráficas de tendencia:', err); }
     }
+    renderDailyTable(s);
     // La tabla de campañas debe pintarse SIEMPRE, incluso si las gráficas fallan.
     renderCampaignsTable(fbF);
     if(typeof Chart !== 'undefined'){
@@ -589,6 +625,7 @@ function initDashboard(){
 
   function renderTrendCharts(s){
     const dsVol = [
+      {label:'Mensajes', data: movingAvg(s.msgs, volumeMA), borderColor:'#0A0A0A', backgroundColor:'#0A0A0A15', tension:.3, pointRadius:0, borderWidth:2},
       {label:'Contactos Lya', data: movingAvg(s.lya, volumeMA), borderColor:'#727FED', backgroundColor:'#727FED22', tension:.3, pointRadius:0, borderWidth:2},
       {label:'Clientes', data: movingAvg(s.cli, volumeMA), borderColor:'#1FAA59', backgroundColor:'#1FAA5920', tension:.3, pointRadius:0, borderWidth:2},
     ];
@@ -601,6 +638,15 @@ function initDashboard(){
     charts.vol = new Chart(document.getElementById('chartVolumen'), {type:'line', data:{labels:s.labels, datasets:dsVol}, options: baseOpts});
   }
 
+  function renderDailyTable(s){
+    document.getElementById('dailyTableHead').innerHTML = '<th>Fecha</th><th class="num">Mensajes</th><th class="num">Contactos Lya</th><th class="num">Clientes cerrados</th>';
+    const rows = s.labels.map((d,i)=>({fecha:d, msgs:s.msgs[i], lya:s.lya[i], cli:s.cli[i]})).slice().reverse().slice(0,60);
+    document.getElementById('dailyTable').innerHTML = rows.map(r=>`
+      <tr><td>${r.fecha}</td><td class="num">${fmtInt(r.msgs)}</td><td class="num">${fmtInt(r.lya)}</td>
+      <td class="num">${r.cli>0?('<span class="etapa-badge etapa-cliente">'+fmtInt(r.cli)+'</span>'):'—'}</td></tr>
+    `).join('') || emptyRow(4);
+  }
+
   function renderMensualView(){
     if(typeof Chart === 'undefined') return;
     const baseOpts = {
@@ -608,20 +654,43 @@ function initDashboard(){
       plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{family:'Inter', size:11}}}},
       scales:{ x:{grid:{display:false}, ticks:{font:{family:'Inter', size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:12}}, y:{grid:{color:'#EFEFF3'}, ticks:{font:{family:'Inter', size:10}}} }
     };
-    const labels = RESUMEN_MENSUAL.map(r=>monthLabel(r.mes));
+
+    // Mensajes y gasto por mes, calculados aquí mismo desde FB_Atlab (misma fuente que el resto del panel).
+    const msgsByMonth = {}, spendByMonth = {};
+    FB.forEach(r=>{
+      const mk = toMonthKey(parseDateFlexible(r.fecha));
+      if(!mk) return;
+      msgsByMonth[mk] = (msgsByMonth[mk]||0) + r.msgs;
+      spendByMonth[mk] = (spendByMonth[mk]||0) + r.spend;
+    });
+
+    const rows = RESUMEN_MENSUAL.map(r=>{
+      const msgs = msgsByMonth[r.mes] || 0;
+      const spend = spendByMonth[r.mes] || 0;
+      return {
+        mes: r.mes, msgs, lya: r.lya, clientes: r.clientes,
+        pctMsgLya: msgs ? (r.lya/msgs*100) : 0,
+        costPerCli: r.clientes ? (spend/r.clientes) : NaN,
+        diasProm: r.diasProm,
+      };
+    });
+
+    const labels = rows.map(r=>monthLabel(r.mes));
     if(charts.mensual) charts.mensual.destroy();
     charts.mensual = new Chart(document.getElementById('chartMensual'), {type:'bar', data:{labels, datasets:[
-      {type:'bar', label:'Contactos Lya', data:RESUMEN_MENSUAL.map(r=>r.lya), backgroundColor:'#727FED', borderRadius:4, yAxisID:'y'},
-      {type:'bar', label:'Clientes', data:RESUMEN_MENSUAL.map(r=>r.clientes), backgroundColor:'#1FAA59', borderRadius:4, yAxisID:'y'},
-      {type:'line', label:'% conversión del mes', data:RESUMEN_MENSUAL.map(r=>r.pct), borderColor:'#0A0A0A', backgroundColor:'#0A0A0A', tension:.3, pointRadius:2, borderWidth:2, yAxisID:'y1'},
+      {type:'bar', label:'Mensajes', data:rows.map(r=>r.msgs), backgroundColor:'#0A0A0A', borderRadius:4, yAxisID:'y'},
+      {type:'bar', label:'Contactos Lya', data:rows.map(r=>r.lya), backgroundColor:'#727FED', borderRadius:4, yAxisID:'y'},
+      {type:'bar', label:'Clientes', data:rows.map(r=>r.clientes), backgroundColor:'#1FAA59', borderRadius:4, yAxisID:'y'},
+      {type:'line', label:'% Mensaje → Lya', data:rows.map(r=>r.pctMsgLya), borderColor:'#E8598A', backgroundColor:'#E8598A', tension:.3, pointRadius:2, borderWidth:2, yAxisID:'y1'},
     ]}, options:{...baseOpts, scales:{...baseOpts.scales, y1:{position:'right', grid:{display:false}, ticks:{font:{family:'Inter', size:10}, callback:v=>v+'%'}}}}});
 
     const mesTable = document.getElementById('mensualTable');
-    document.getElementById('mensualTableHead').innerHTML = '<th>Mes</th><th class="num">Contactos Lya</th><th class="num">Clientes</th><th class="num">% conversión</th><th class="num">Días prom. (clientes de ese mes)</th>';
-    mesTable.innerHTML = RESUMEN_MENSUAL.slice().reverse().map(r=>`
-      <tr><td>${monthLabel(r.mes)}</td><td class="num">${fmtInt(r.lya)}</td><td class="num">${fmtInt(r.clientes)}</td>
-      <td class="num">${r.pct.toFixed(1)}%</td><td class="num">${fmtDias(r.diasProm)}</td></tr>
-    `).join('') || emptyRow(5);
+    document.getElementById('mensualTableHead').innerHTML = '<th>Mes</th><th class="num">Mensajes</th><th class="num">Contactos Lya</th><th class="num">% Mensaje→Lya</th><th class="num">Clientes</th><th class="num">Costo/cliente</th><th class="num">Días prom. (clientes de ese mes)</th>';
+    mesTable.innerHTML = rows.slice().reverse().map(r=>`
+      <tr><td>${monthLabel(r.mes)}</td><td class="num">${fmtInt(r.msgs)}</td><td class="num">${fmtInt(r.lya)}</td>
+      <td class="num">${r.pctMsgLya.toFixed(1)}%</td><td class="num">${fmtInt(r.clientes)}</td>
+      <td class="num">${fmtCOP(r.costPerCli)}</td><td class="num">${fmtDias(r.diasProm)}</td></tr>
+    `).join('') || emptyRow(7);
 
     const cLabels = COHORTE_MENSUAL.map(r=>monthLabel(r.mes));
     if(charts.cohortePct) charts.cohortePct.destroy();
