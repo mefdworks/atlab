@@ -286,9 +286,9 @@
     <div class="view" id="view-mensual">
       <div class="section-title">Resumen mensual</div>
       <div class="caption">Mensajes que llegaron por Meta Ads, contactos que Lya alcanzó a perfilar, y clientes que cerraron ese mes. El % es Mensaje → Lya (ventana corta, tiene sentido comparar el mismo mes). El % Lya → Cliente NO se muestra aquí como cociente simple porque el cierre casi nunca es del mismo mes que el contacto — para esa tasa real usa la cohorte de abajo.</div>
-      <div class="chart-card">
-        <div class="chart-card-head"><h3>Mensajes · Contactos Lya · Clientes por mes</h3></div>
-        <div class="chart-holder"><canvas id="chartMensual"></canvas></div>
+      <div class="chart-grid-2">
+        <div class="chart-card"><div class="chart-card-head"><h3>% convertido a hoy, por cohorte</h3></div><div class="chart-holder"><canvas id="chartCohortePct"></canvas></div></div>
+        <div class="chart-card"><div class="chart-card-head"><h3>Días promedio hasta convertir</h3></div><div class="chart-holder"><canvas id="chartCohorteDias"></canvas></div></div>
       </div>
       <div class="chart-card" style="padding:10px 22px 22px;">
         <table><thead><tr id="mensualTableHead"></tr></thead><tbody id="mensualTable"></tbody></table>
@@ -296,10 +296,6 @@
 
       <div class="section-title">Cohorte de conversión (días hasta convertir)</div>
       <div class="caption">Por mes en que entró el contacto de Lya: qué % de esos contactos ya es cliente <b>a hoy</b>, y cuántos días tardó en promedio. Los meses más recientes se ven bajos a propósito — todavía no ha pasado tiempo suficiente para que conviertan.</div>
-      <div class="chart-grid-2">
-        <div class="chart-card"><div class="chart-card-head"><h3>% convertido a hoy, por cohorte</h3></div><div class="chart-holder"><canvas id="chartCohortePct"></canvas></div></div>
-        <div class="chart-card"><div class="chart-card-head"><h3>Días promedio hasta convertir</h3></div><div class="chart-holder"><canvas id="chartCohorteDias"></canvas></div></div>
-      </div>
       <div class="chart-card" style="padding:10px 22px 22px;">
         <table><thead><tr id="cohorteTableHead"></tr></thead><tbody id="cohorteTable"></tbody></table>
       </div>
@@ -685,13 +681,6 @@ function initDashboard(){
     });
 
     const labels = rows.map(r=>monthLabel(r.mes));
-    if(charts.mensual) charts.mensual.destroy();
-    charts.mensual = new Chart(document.getElementById('chartMensual'), {type:'bar', data:{labels, datasets:[
-      {type:'bar', label:'Mensajes', data:rows.map(r=>r.msgs), backgroundColor:'#0A0A0A', borderRadius:4, yAxisID:'y'},
-      {type:'bar', label:'Contactos Lya', data:rows.map(r=>r.lya), backgroundColor:'#727FED', borderRadius:4, yAxisID:'y'},
-      {type:'bar', label:'Clientes', data:rows.map(r=>r.clientes), backgroundColor:'#1FAA59', borderRadius:4, yAxisID:'y'},
-      {type:'line', label:'% Mensaje → Lya', data:rows.map(r=>r.pctMsgLya), borderColor:'#E8598A', backgroundColor:'#E8598A', tension:.3, pointRadius:2, borderWidth:2, yAxisID:'y1'},
-    ]}, options:{...baseOpts, scales:{...baseOpts.scales, y1:{position:'right', grid:{display:false}, ticks:{font:{family:'Inter', size:10}, callback:v=>v+'%'}}}}});
 
     const mesTable = document.getElementById('mensualTable');
     document.getElementById('mensualTableHead').innerHTML = '<th>Mes</th><th class="num">Mensajes</th><th class="num">Contactos Lya</th><th class="num">% Mensaje→Lya</th><th class="num">Clientes</th><th class="num">Costo/cliente</th><th class="num">Días prom. (clientes de ese mes)</th>';
