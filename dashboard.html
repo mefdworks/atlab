@@ -64,7 +64,7 @@
 
   .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px;}
   .stat-pills{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:22px;}
-  .stat-pill{display:flex; align-items:center; gap:8px; background:var(--ink); color:#fff; border-radius:100px; padding:8px 8px 8px 16px; font-size:12px; font-weight:600;}
+  .stat-pill{display:flex; align-items:center; gap:8px; background:var(--ink); color:#fff; border-radius:100px; padding:8px 8px 8px 16px; font-size:12px; font-weight:600; flex:0 0 auto; white-space:nowrap;}
   .stat-pill .pct{background:var(--accent); color:#fff; border-radius:100px; padding:4px 11px; font-family:'Anton',sans-serif; font-size:13px; font-weight:400;}
   .stat-pill.light{background:var(--paper); color:var(--ink); border:1px solid rgba(10,10,10,.08);}
   .stat-pill.light .pct{background:var(--ink);}
@@ -302,6 +302,12 @@
       </div>
       <div class="chart-card" style="padding:10px 22px 22px;">
         <table><thead><tr id="cohorteTableHead"></tr></thead><tbody id="cohorteTable"></tbody></table>
+      </div>
+
+      <div class="section-title">¿En qué mes convierten? (mes de llegada vs. mes de cierre)</div>
+      <div class="caption">Cada fila es un mes de llegada por Lya. Las columnas muestran cuántos de esos contactos cerraron ese mismo mes, al mes siguiente, etc. — así ves, por ejemplo, cuántos de los que llegaron en junio cerraron en junio y cuántos en julio.</div>
+      <div class="chart-card" style="padding:10px 22px 22px; overflow-x:auto;">
+        <table><thead><tr id="lagTableHead"></tr></thead><tbody id="lagTable"></tbody></table>
       </div>
     </div>
 
@@ -567,8 +573,15 @@ function initDashboard(){
     const totalSpend = fbF.reduce((a,r)=>a+r.spend,0);
     const totalMsgs = fbF.reduce((a,r)=>a+r.msgs,0);
 
+    // Lya → Cliente como COHORTE del rango: de los contactos Lya del rango, cuántos
+    // ya son clientes a HOY (en cualquier fecha) — nunca pasa de 100%, a diferencia de
+    // comparar contra "clientes nuevos del rango" (población casi distinta, por eso
+    // antes daba 888%/3523%).
+    const lyaEnRango = MAESTRO.filter(e=>e.lya && inRange(e.lya,start,end));
+    const convertidosDeEseLya = lyaEnRango.filter(e=>e.cliente).length;
+
     const pctMsgLya = totalMsgs ? (totalLya/totalMsgs*100) : 0;
-    const pctLyaCli = totalLya ? (totalCli/totalLya*100) : 0;
+    const pctLyaCli = totalLya ? (convertidosDeEseLya/totalLya*100) : 0;
     const pctMsgCli = totalMsgs ? (totalCli/totalMsgs*100) : 0;
     const costPerMsg = totalMsgs ? totalSpend/totalMsgs : NaN;
     const costPerLya = totalLya ? totalSpend/totalLya : NaN;
@@ -582,10 +595,8 @@ function initDashboard(){
     document.getElementById('ringConv').style.strokeDashoffset = RING_CIRC - (RING_CIRC * Math.min(pctMsgCli,100) / 100);
 
     document.getElementById('statPills').innerHTML = `
-      <div class="stat-pill">Mensaje → Lya (rango) <span class="pct">${pctMsgLya.toFixed(1)}%</span></div>
-      <div class="stat-pill">Mensaje → Lya (histórico) <span class="pct">${histMsgLyaPct.toFixed(1)}%</span></div>
-      <div class="stat-pill">Lya → Cliente (rango) <span class="pct">${pctLyaCli.toFixed(1)}%</span></div>
-      <div class="stat-pill">Lya → Cliente (histórico) <span class="pct">${histLyaCliPct.toFixed(1)}%</span></div>
+      <div class="stat-pill">Mensaje → Lya <span class="pct">${pctMsgLya.toFixed(1)}%</span></div>
+      <div class="stat-pill">Lya → Cliente (a hoy) <span class="pct">${pctLyaCli.toFixed(1)}%</span></div>
       <div class="stat-pill light">Costo/cliente <span class="pct">${fmtCOP(costPerCli)}</span></div>
     `;
 
@@ -596,15 +607,13 @@ function initDashboard(){
     document.getElementById('fBarCli').style.width = totalMsgs ? Math.max(4,Math.min(100,pctMsgCli))+'%' : '4%';
 
     document.getElementById('fArrow0Text').textContent = totalMsgs ? pctMsgLya.toFixed(1)+'%' : '—';
-    document.getElementById('fArrow0Sub').textContent = 'histórico: '+histMsgLyaPct.toFixed(1)+'%';
     document.getElementById('fArrow1Text').textContent = totalLya ? pctLyaCli.toFixed(1)+'%' : '—';
-    document.getElementById('fArrow1Sub').textContent = 'histórico: '+histLyaCliPct.toFixed(1)+'%';
 
     document.getElementById('fCostMsgs').textContent = fmtCOP(costPerMsg);
     document.getElementById('fCostLya').textContent = fmtCOP(costPerLya);
     document.getElementById('fCostCli').textContent = fmtCOP(costPerCli);
     document.getElementById('funnelNote').textContent =
-      'Cada etapa se cuenta sobre su propia fecha dentro del rango (mensaje del día, contacto Lya del día, cliente que cerró ese día) — no son necesariamente las mismas personas, porque el ciclo de venta toma semanas. El % histórico (todo el tiempo) es la referencia más estable. Costo por etapa = inversión total en Meta Ads del rango ÷ nuevos de esa etapa. Estimado agregado (blended), no atribución por anuncio.';
+      'Mensaje → Lya se calcula sobre el mismo rango (ventana corta). Lya → Cliente es una cohorte: de los contactos Lya del rango, qué % ya es cliente A HOY (así nunca pasa de 100%, aunque el cierre haya sido semanas después). "Clientes nuevos" es un conteo aparte — cuántos cerraron dentro del rango, vengan de cuando vengan. Costo por etapa = inversión Meta Ads del rango ÷ nuevos de esa etapa.';
 
     document.getElementById('kpiSpend').textContent = fmtCOP(totalSpend);
     document.getElementById('kpiMsgs').textContent = fmtInt(totalMsgs);
@@ -707,6 +716,44 @@ function initDashboard(){
       <tr><td>${monthLabel(r.mes)}</td><td class="num">${fmtInt(r.contactos)}</td><td class="num">${fmtInt(r.convertidos)}</td>
       <td class="num">${r.pct.toFixed(1)}%</td><td class="num">${fmtDias(r.diasProm)}</td><td class="num">${fmtDias(r.diasMed)}</td></tr>
     `).join('') || emptyRow(6);
+
+    renderConversionLagMatrix();
+  }
+
+  function renderConversionLagMatrix(){
+    const N_BUCKETS = 5; // 0=mismo mes, 1,2,3, 4="4+ meses"
+    const cohortes = {};
+    MAESTRO.forEach(e=>{
+      if(!e.lya) return;
+      const mk = e.lya.slice(0,7);
+      if(!cohortes[mk]) cohortes[mk] = {total:0, buckets:new Array(N_BUCKETS).fill(0), noConv:0};
+      const c = cohortes[mk];
+      c.total++;
+      if(e.cliente){
+        const [yL,mL] = e.lya.slice(0,7).split('-').map(Number);
+        const [yC,mC] = e.cliente.slice(0,7).split('-').map(Number);
+        let diff = (yC-yL)*12 + (mC-mL);
+        if(diff<0) diff = 0;
+        c.buckets[Math.min(diff,N_BUCKETS-1)]++;
+      } else {
+        c.noConv++;
+      }
+    });
+    const meses = Object.keys(cohortes).sort();
+    const bucketLabels = ['Mismo mes','+1 mes','+2 meses','+3 meses','+4 meses o más'];
+    document.getElementById('lagTableHead').innerHTML = '<th>Mes de llegada (Lya)</th><th class="num">Contactos</th>'
+      + bucketLabels.map(l=>`<th class="num">${l}</th>`).join('') + '<th class="num">Sin convertir aún</th>';
+    function heat(v, max){
+      if(!v) return '';
+      const alpha = Math.min(0.85, 0.15 + 0.7*(v/(max||1)));
+      return `background:rgba(114,127,237,${alpha.toFixed(2)}); border-radius:6px; font-weight:700;`;
+    }
+    document.getElementById('lagTable').innerHTML = meses.slice().reverse().map(mk=>{
+      const c = cohortes[mk];
+      const max = Math.max(...c.buckets, c.noConv, 1);
+      const cells = c.buckets.map(v=>`<td class="num" style="${heat(v,max)}">${v||''}</td>`).join('');
+      return `<tr><td>${monthLabel(mk)}</td><td class="num">${fmtInt(c.total)}</td>${cells}<td class="num" style="${heat(c.noConv,max)}">${c.noConv||''}</td></tr>`;
+    }).join('') || emptyRow(7);
   }
 
   function dailyFbSeries(fbF){
@@ -853,7 +900,14 @@ function initDashboard(){
       item.classList.add('active');
       document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
       document.getElementById('view-'+item.dataset.view).classList.add('active');
-      requestAnimationFrame(()=>{ Object.values(charts).forEach(c=>{ if(c) c.resize(); }); });
+      if(item.dataset.view === 'mensual'){
+        // Estas gráficas viven en una pestaña oculta al cargar — Chart.js necesita el
+        // contenedor visible (con ancho real) para dibujar bien, por eso se crean recién
+        // aquí, no en la carga inicial.
+        requestAnimationFrame(()=>{ try{ renderMensualView(); } catch(err){ console.error('Error en vista mensual/cohortes:', err); } });
+      } else {
+        requestAnimationFrame(()=>{ Object.values(charts).forEach(c=>{ if(c) c.resize(); }); });
+      }
     });
   });
 
@@ -904,9 +958,6 @@ function initDashboard(){
   renderDetailHead();
   renderDetail('');
   render();
-  if(typeof Chart !== 'undefined'){
-    try{ renderMensualView(); } catch(err){ console.error('Error en vista mensual/cohortes:', err); }
-  }
 }
 
 loadData();
