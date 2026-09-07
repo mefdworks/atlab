@@ -275,10 +275,10 @@
 
       <div class="caption" style="margin-top:6px;">El % de conversión día a día no es un buen indicador aquí — el ciclo de venta toma semanas, así que casi siempre da 0%. Para ver conversión real, entra a la vista <b>Mensual · Cohortes</b>.</div>
 
-      <div class="section-title">Detalle diario</div>
-      <div class="caption">Mensajes que llegaron ese día, contactos que Lya alcanzó a perfilar, y clientes que cerraron ese día (el cierre casi nunca es el mismo día del mensaje — el ciclo de venta toma semanas).</div>
+      <div class="section-title">Inversión y conversión mes a mes</div>
+      <div class="caption">Inversión y mensajes de Meta Ads, contactos que Lya alcanzó a perfilar, y clientes que cerraron cada mes — para ver de un vistazo cómo sube o baja la eficiencia mes a mes. Incluye todo el histórico, sin importar el rango elegido arriba.</div>
       <div class="chart-card" style="padding:10px 22px 22px;">
-        <table><thead><tr id="dailyTableHead"></tr></thead><tbody id="dailyTable"></tbody></table>
+        <table><thead><tr id="resumenMonthlyTableHead"></tr></thead><tbody id="resumenMonthlyTable"></tbody></table>
       </div>
     </div>
 
@@ -622,7 +622,7 @@ function initDashboard(){
     } else {
       try{ renderTrendCharts(s); } catch(err){ console.error('Error en gráficas de tendencia:', err); }
     }
-    renderDailyTable(s);
+    renderResumenMonthlyTable();
     // La tabla de campañas debe pintarse SIEMPRE, incluso si las gráficas fallan.
     renderCampaignsTable(fbF);
     if(typeof Chart !== 'undefined'){
@@ -645,13 +645,37 @@ function initDashboard(){
     charts.vol = new Chart(document.getElementById('chartVolumen'), {type:'line', data:{labels:s.labels, datasets:dsVol}, options: baseOpts});
   }
 
-  function renderDailyTable(s){
-    document.getElementById('dailyTableHead').innerHTML = '<th>Fecha</th><th class="num">Mensajes</th><th class="num">Contactos Lya</th><th class="num">Clientes cerrados</th>';
-    const rows = s.labels.map((d,i)=>({fecha:d, msgs:s.msgs[i], lya:s.lya[i], cli:s.cli[i]})).slice().reverse().slice(0,60);
-    document.getElementById('dailyTable').innerHTML = rows.map(r=>`
-      <tr><td>${r.fecha}</td><td class="num">${fmtInt(r.msgs)}</td><td class="num">${fmtInt(r.lya)}</td>
-      <td class="num">${r.cli>0?('<span class="etapa-badge etapa-cliente">'+fmtInt(r.cli)+'</span>'):'—'}</td></tr>
-    `).join('') || emptyRow(4);
+  function renderResumenMonthlyTable(){
+    // Inversión y mensajes por mes, calculados desde FB_Atlab (misma fuente que el resto del panel).
+    const msgsByMonth = {}, spendByMonth = {};
+    FB.forEach(r=>{
+      const mk = toMonthKey(parseDateFlexible(r.fecha));
+      if(!mk) return;
+      msgsByMonth[mk] = (msgsByMonth[mk]||0) + r.msgs;
+      spendByMonth[mk] = (spendByMonth[mk]||0) + r.spend;
+    });
+
+    const rows = RESUMEN_MENSUAL.map(r=>{
+      const msgs = msgsByMonth[r.mes] || 0;
+      const spend = spendByMonth[r.mes] || 0;
+      return {
+        mes: r.mes, spend, msgs, lya: r.lya, clientes: r.clientes,
+        costPerMsg: msgs ? (spend/msgs) : NaN,
+        costPerCli: r.clientes ? (spend/r.clientes) : NaN,
+        pctMsgLya: msgs ? (r.lya/msgs*100) : 0,
+        pctMsgCli: msgs ? (r.clientes/msgs*100) : 0,
+      };
+    });
+
+    document.getElementById('resumenMonthlyTableHead').innerHTML =
+      '<th>Mes</th><th class="num">Inversión</th><th class="num">Mensajes</th><th class="num">Costo/mensaje</th>' +
+      '<th class="num">Contactos Lya</th><th class="num">Clientes</th><th class="num">% Mensaje→Lya</th><th class="num">% Mensaje→Cliente</th>';
+    document.getElementById('resumenMonthlyTable').innerHTML = rows.slice().reverse().map(r=>`
+      <tr><td>${monthLabel(r.mes)}</td><td class="num">${fmtCOP(r.spend)}</td><td class="num">${fmtInt(r.msgs)}</td>
+      <td class="num">${fmtCOP(r.costPerMsg)}</td><td class="num">${fmtInt(r.lya)}</td>
+      <td class="num">${r.clientes>0?('<span class="etapa-badge etapa-cliente">'+fmtInt(r.clientes)+'</span>'):'—'}</td>
+      <td class="num">${r.pctMsgLya.toFixed(1)}%</td><td class="num">${r.pctMsgCli.toFixed(1)}%</td></tr>
+    `).join('') || emptyRow(8);
   }
 
   function renderMensualView(){
