@@ -401,6 +401,8 @@ function parseDateFlexible(s){
   if(m) return new Date(+m[3], +m[2]-1, +m[1]);
   m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  m = s.match(/^(\d{4})-(\d{1,2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, 1);
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
