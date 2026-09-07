@@ -669,12 +669,12 @@ function initDashboard(){
 
     document.getElementById('resumenMonthlyTableHead').innerHTML =
       '<th>Mes</th><th class="num">Inversión</th><th class="num">Mensajes</th><th class="num">Costo/mensaje</th>' +
-      '<th class="num">Contactos Lya</th><th class="num">Clientes</th><th class="num">% Mensaje→Lya</th><th class="num">% Mensaje→Cliente</th>';
+      '<th class="num">Contactos Lya</th><th class="num">Clientes</th><th class="num">Costo/cliente</th><th class="num">% Mensaje→Cliente</th>';
     document.getElementById('resumenMonthlyTable').innerHTML = rows.slice().reverse().map(r=>`
       <tr><td>${monthLabel(r.mes)}</td><td class="num">${fmtCOP(r.spend)}</td><td class="num">${fmtInt(r.msgs)}</td>
       <td class="num">${fmtCOP(r.costPerMsg)}</td><td class="num">${fmtInt(r.lya)}</td>
       <td class="num">${r.clientes>0?('<span class="etapa-badge etapa-cliente">'+fmtInt(r.clientes)+'</span>'):'—'}</td>
-      <td class="num">${r.pctMsgLya.toFixed(1)}%</td><td class="num">${r.pctMsgCli.toFixed(1)}%</td></tr>
+      <td class="num">${fmtCOP(r.costPerCli)}</td><td class="num">${r.pctMsgCli.toFixed(1)}%</td></tr>
     `).join('') || emptyRow(8);
   }
 
