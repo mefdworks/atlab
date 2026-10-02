@@ -227,6 +227,21 @@
           </div>
           <div class="ring-center-value" id="kpiConv" style="margin-top:-58px;">—</div>
         </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ventas (planes)</div>
+          <div class="kpi-value" id="kpiVentas">—</div>
+          <div class="caption" id="kpiVentasSub" style="margin:6px 0 0;"></div>
+        </div>
+        <div class="kpi-card ring-card">
+          <div class="kpi-label" style="margin-bottom:6px;">Conversión Mensaje → Venta</div>
+          <div class="ring-wrap">
+            <svg class="ring-svg" width="88" height="88" viewBox="0 0 88 88">
+              <circle class="ring-bg" cx="44" cy="44" r="38"></circle>
+              <circle class="ring-fg" id="ringConvVenta" cx="44" cy="44" r="38" stroke-dasharray="238.76" stroke-dashoffset="238.76"></circle>
+            </svg>
+          </div>
+          <div class="ring-center-value" id="kpiConvVenta" style="margin-top:-58px;">—</div>
+        </div>
       </div>
 
       <div class="stat-pills" id="statPills"></div>
@@ -257,23 +272,28 @@
             <div class="funnel-bar-track"><div class="funnel-bar-fill" id="fBarCli"></div></div>
             <div class="funnel-cost">Costo / cliente <b id="fCostCli">—</b></div>
           </div>
+          <div class="funnel-arrow" id="fArrow2"><span id="fArrow2Text">→</span>
+            <div class="funnel-arrow-sub" id="fArrow2Sub"></div>
+          </div>
+          <div class="funnel-step">
+            <div class="funnel-eyebrow">Ventas</div>
+            <div class="funnel-value" id="fVentas">—</div>
+            <div class="funnel-bar-track"><div class="funnel-bar-fill" id="fBarVentas"></div></div>
+            <div class="funnel-cost">Costo / venta <b id="fCostVentas">—</b></div>
+          </div>
         </div>
         <div class="funnel-note" id="funnelNote"></div>
       </div>
 
-      <div class="section-title">Volumen diario</div>
+      <div class="section-title">Conversión mes a mes</div>
       <div class="chart-card">
         <div class="chart-card-head">
-          <h3>Mensajes · Contactos Lya · Clientes</h3>
-          <div class="mini-toggle" id="toggleMA">
-            <button data-ma="0" class="active">Diario</button>
-            <button data-ma="7">Prom. 7 días</button>
-          </div>
+          <h3>% Mensaje → Cliente · % Mensaje → Venta</h3>
         </div>
-        <div class="chart-holder"><canvas id="chartVolumen"></canvas></div>
+        <div class="chart-holder"><canvas id="chartConvMensual"></canvas></div>
       </div>
 
-      <div class="caption" style="margin-top:6px;">El % de conversión día a día no es un buen indicador aquí — el ciclo de venta toma semanas, así que casi siempre da 0%. Para ver conversión real, entra a la vista <b>Mensual · Cohortes</b>.</div>
+      <div class="caption" style="margin-top:6px;">Mensajes de Meta Ads del mes contra clientes nuevos (EVO) y ventas de planes (pestaña <b>Ventas mes</b>) del mismo mes. Todo el histórico, sin importar el rango elegido arriba. Los meses sin ventas cargadas no muestran el % de venta.</div>
 
       <div class="section-title">Inversión y conversión mes a mes</div>
       <div class="caption">Inversión y mensajes de Meta Ads, contactos que Lya alcanzó a perfilar, y clientes que cerraron cada mes — para ver de un vistazo cómo sube o baja la eficiencia mes a mes. Incluye todo el histórico, sin importar el rango elegido arriba.</div>
@@ -370,6 +390,7 @@ const GID_MAESTRO = '516857242';
 const GID_FB = '127374061';
 const GID_RESUMEN_MENSUAL = '2145950903';
 const GID_COHORTE_MENSUAL = '507551534';
+const GID_VENTAS = '40390057'; // pestaña "Ventas mes" (manual): Mes, Ventas
 const urlFor = gid => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}&_cb=${Date.now()}`;
 
 function fetchCSV(gid){
@@ -391,6 +412,8 @@ const F = {FECHA:0, CAMPANA:1, ADSET:2, AD:3, PREVIEW:4, SPEND:5, CLICKS:6, MSGS
 const RM = {MES:0, LYA:1, CLIENTES:2, PCT:3, DIAS_PROM:4};
 // Cohorte_Mensual: Mes_Cohorte_Lya, Contactos_Del_Mes, Convertidos_A_Hoy, Pct_Convertido_A_Hoy, Dias_Promedio, Dias_Mediana
 const CM = {MES:0, CONTACTOS:1, CONVERTIDOS:2, PCT:3, DIAS_PROM:4, DIAS_MED:5};
+// Ventas mes (manual): Mes (fecha 1/mm/yyyy), Ventas
+const VM = {MES:0, VENTAS:1};
 
 /** Parser de fecha flexible: dd/mm/yyyy[ hh:mm] (formato EVO/script) o yyyy-mm-dd. */
 function parseDateFlexible(s){
@@ -434,12 +457,24 @@ function parsePct(v){
 }
 
 let MAESTRO = [], FB = [], RESUMEN_MENSUAL = [], COHORTE_MENSUAL = [];
+let VENTAS_MES = {}; // 'yyyy-MM' -> ventas; meses en 0 o vacíos = sin dato cargado
 
 async function loadData(){
   try{
-    const [maestroRows, fbRows, resumenMensualRows, cohorteMensualRows] = await Promise.all([
-      fetchCSV(GID_MAESTRO), fetchCSV(GID_FB), fetchCSV(GID_RESUMEN_MENSUAL), fetchCSV(GID_COHORTE_MENSUAL)
+    const [maestroRows, fbRows, resumenMensualRows, cohorteMensualRows, ventasRows] = await Promise.all([
+      fetchCSV(GID_MAESTRO), fetchCSV(GID_FB), fetchCSV(GID_RESUMEN_MENSUAL), fetchCSV(GID_COHORTE_MENSUAL),
+      fetchCSV(GID_VENTAS).catch(()=>[])
     ]);
+
+    // Ventas mes → quitar encabezado; solo meses con ventas > 0
+    let vRows = ventasRows;
+    if(vRows.length && String(vRows[0][0]).toUpperCase().includes('MES')) vRows = vRows.slice(1);
+    VENTAS_MES = {};
+    vRows.forEach(r=>{
+      const mk = toMonthKey(parseDateFlexible(r[VM.MES]));
+      const v = parseNum(r[VM.VENTAS]);
+      if(mk && v > 0) VENTAS_MES[mk] = v;
+    });
 
     // Maestro_Cruce → quitar fila de encabezado si viene incluida
     let mRows = maestroRows;
@@ -516,7 +551,6 @@ function initDashboard(){
 
   let charts = {};
   let lastCampRows = [];
-  let volumeMA = 0, convMA = 7;
 
   function computeRange(){
     const sel = document.getElementById('rangeSelect').value;
@@ -541,7 +575,30 @@ function initDashboard(){
     return [toKey(d), end];
   }
   function inRange(k, start, end){ return k && k >= start && k <= end; }
-  function movingAvg(arr, w){ if(w<=1) return arr; const out=[]; for(let i=0;i<arr.length;i++){ const s=Math.max(0,i-w+1); const sl=arr.slice(s,i+1); out.push(sl.reduce((a,b)=>a+b,0)/sl.length); } return out; }
+
+  // Ventas del rango a partir de la pestaña mensual "Ventas mes". Si el rango cubre
+  // un mes completo se toma el dato exacto; si solo cubre una parte se prorratea por
+  // días (y se marca como estimado). Solo cuentan los meses con ventas cargadas.
+  function ventasEnRango(start, end){
+    let ventas = 0, parcial = false;
+    const meses = [];
+    if(!start || !end) return {ventas, parcial, meses};
+    const s = new Date(start+'T00:00:00'), e = new Date(end+'T00:00:00');
+    const DAY = 86400000;
+    for(let d = new Date(s.getFullYear(), s.getMonth(), 1); d <= e; d = new Date(d.getFullYear(), d.getMonth()+1, 1)){
+      const mk = toMonthKey(d);
+      if(!VENTAS_MES[mk]) continue;
+      const finMes = new Date(d.getFullYear(), d.getMonth()+1, 0);
+      const desde = s > d ? s : d, hasta = e < finMes ? e : finMes;
+      const dias = Math.round((hasta - desde)/DAY) + 1;
+      const frac = dias / finMes.getDate();
+      if(frac < 1) parcial = true;
+      ventas += VENTAS_MES[mk] * frac;
+      meses.push(mk);
+    }
+    return {ventas, parcial, meses};
+  }
+  const tieneVentas = k => !!(k && VENTAS_MES[k.slice(0,7)]);
 
   function buildDailySeries(start, end, fbF){
     const dLya={}, dCli={}, dMsgs={};
@@ -585,22 +642,49 @@ function initDashboard(){
     const costPerLya = totalLya ? totalSpend/totalLya : NaN;
     const costPerCli = totalCli ? totalSpend/totalCli : NaN;
 
+    // Ventas: los % y el costo se calculan solo sobre los días que caen en meses con
+    // ventas cargadas, para no diluirlos con meses que aún no tienen el dato.
+    const V = ventasEnRango(start, end);
+    const hayVentas = V.meses.length > 0;
+    const fbV = fbF.filter(r=>tieneVentas(r.fecha));
+    const msgsV = fbV.reduce((a,r)=>a+r.msgs,0);
+    const spendV = fbV.reduce((a,r)=>a+r.spend,0);
+    const cliV = MAESTRO.filter(e=>e.cliente && inRange(e.cliente,start,end) && tieneVentas(e.cliente)).length;
+    const pctMsgVenta = (hayVentas && msgsV) ? (V.ventas/msgsV*100) : NaN;
+    const pctCliVenta = (hayVentas && cliV) ? (V.ventas/cliV*100) : NaN;
+    const costPerVenta = (hayVentas && V.ventas) ? spendV/V.ventas : NaN;
+    const fmtVentas = hayVentas ? (V.parcial ? '≈' : '') + fmtInt(V.ventas) : '—';
+    const fmtPct = n => isFinite(n) ? n.toFixed(1)+'%' : '—';
+
     document.getElementById('kpiMsgsFunnel').textContent = fmtInt(totalMsgs);
     document.getElementById('kpiLya').textContent = fmtInt(totalLya);
     document.getElementById('kpiCli').textContent = fmtInt(totalCli);
     document.getElementById('kpiConv').textContent = pctMsgCli.toFixed(1)+'%';
     const RING_CIRC = 238.76;
     document.getElementById('ringConv').style.strokeDashoffset = RING_CIRC - (RING_CIRC * Math.min(pctMsgCli,100) / 100);
+    document.getElementById('kpiVentas').textContent = fmtVentas;
+    document.getElementById('kpiVentasSub').textContent = !hayVentas
+      ? 'Sin ventas cargadas para este periodo'
+      : (V.parcial ? 'Estimado: prorrateado por días de ' : 'Dato de ') + V.meses.map(monthLabel).join(', ');
+    document.getElementById('kpiConvVenta').textContent = fmtPct(pctMsgVenta);
+    document.getElementById('ringConvVenta').style.strokeDashoffset = RING_CIRC - (RING_CIRC * Math.min(isFinite(pctMsgVenta)?pctMsgVenta:0,100) / 100);
 
     document.getElementById('statPills').innerHTML = `
       <div class="stat-pill">Mensaje → Lya <span class="pct">${pctMsgLya.toFixed(1)}%</span></div>
       <div class="stat-pill">Lya → Cliente (a hoy) <span class="pct">${pctLyaCli.toFixed(1)}%</span></div>
+      <div class="stat-pill">Cliente → Venta <span class="pct">${fmtPct(pctCliVenta)}</span></div>
       <div class="stat-pill light">Costo/cliente <span class="pct">${fmtCOP(costPerCli)}</span></div>
+      <div class="stat-pill light">Costo/venta <span class="pct">${fmtCOP(costPerVenta)}</span></div>
     `;
 
     document.getElementById('fMsgs').textContent = fmtInt(totalMsgs);
     document.getElementById('fLya').textContent = fmtInt(totalLya);
     document.getElementById('fCli').textContent = fmtInt(totalCli);
+    document.getElementById('fVentas').textContent = fmtVentas;
+    document.getElementById('fBarVentas').style.width = isFinite(pctMsgVenta) ? Math.max(4,Math.min(100,pctMsgVenta))+'%' : '4%';
+    document.getElementById('fArrow2Text').textContent = fmtPct(pctCliVenta);
+    document.getElementById('fArrow2Sub').textContent = isFinite(pctMsgVenta) ? 'Msj→Venta '+pctMsgVenta.toFixed(1)+'%' : '';
+    document.getElementById('fCostVentas').textContent = fmtCOP(costPerVenta);
     document.getElementById('fBarLya').style.width = totalMsgs ? Math.max(4,Math.min(100,pctMsgLya))+'%' : '4%';
     document.getElementById('fBarCli').style.width = totalMsgs ? Math.max(4,Math.min(100,pctMsgCli))+'%' : '4%';
 
@@ -611,7 +695,7 @@ function initDashboard(){
     document.getElementById('fCostLya').textContent = fmtCOP(costPerLya);
     document.getElementById('fCostCli').textContent = fmtCOP(costPerCli);
     document.getElementById('funnelNote').textContent =
-      'Mensaje → Lya se calcula sobre el mismo rango (ventana corta). Lya → Cliente es una cohorte: de los contactos Lya del rango, qué % ya es cliente A HOY (así nunca pasa de 100%, aunque el cierre haya sido semanas después). "Clientes nuevos" es un conteo aparte — cuántos cerraron dentro del rango, vengan de cuando vengan. Costo por etapa = inversión Meta Ads del rango ÷ nuevos de esa etapa.';
+      'Mensaje → Lya se calcula sobre el mismo rango (ventana corta). Lya → Cliente es una cohorte: de los contactos Lya del rango, qué % ya es cliente A HOY (así nunca pasa de 100%, aunque el cierre haya sido semanas después). "Clientes nuevos" es un conteo aparte — cuántos cerraron dentro del rango, vengan de cuando vengan. Costo por etapa = inversión Meta Ads del rango ÷ nuevos de esa etapa. Ventas sale de la pestaña "Ventas mes" (dato mensual): si el rango no cubre el mes completo se prorratea por días (≈). Cliente → Venta, Mensaje → Venta y Costo/venta se calculan solo con los días de meses que tienen ventas cargadas.';
 
     document.getElementById('kpiSpend').textContent = fmtCOP(totalSpend);
     document.getElementById('kpiMsgs').textContent = fmtInt(totalMsgs);
@@ -620,7 +704,7 @@ function initDashboard(){
     if(typeof Chart === 'undefined'){
       console.warn('Chart.js no cargó — revisa la URL del CDN. Las gráficas no se van a dibujar pero el resto del panel sigue funcionando.');
     } else {
-      try{ renderTrendCharts(s); } catch(err){ console.error('Error en gráficas de tendencia:', err); }
+      try{ renderConvMensualChart(); } catch(err){ console.error('Error en gráfica de conversión mensual:', err); }
     }
     renderResumenMonthlyTable();
     // La tabla de campañas debe pintarse SIEMPRE, incluso si las gráficas fallan.
@@ -630,23 +714,8 @@ function initDashboard(){
     }
   }
 
-  function renderTrendCharts(s){
-    const dsVol = [
-      {label:'Mensajes', data: movingAvg(s.msgs, volumeMA), borderColor:'#0A0A0A', backgroundColor:'#0A0A0A15', tension:.3, pointRadius:0, borderWidth:2},
-      {label:'Contactos Lya', data: movingAvg(s.lya, volumeMA), borderColor:'#727FED', backgroundColor:'#727FED22', tension:.3, pointRadius:0, borderWidth:2},
-      {label:'Clientes', data: movingAvg(s.cli, volumeMA), borderColor:'#1FAA59', backgroundColor:'#1FAA5920', tension:.3, pointRadius:0, borderWidth:2},
-    ];
-    const baseOpts = {
-      responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:false},
-      plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{family:'Inter', size:11}}}},
-      scales:{ x:{grid:{display:false}, ticks:{font:{family:'Inter', size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:8}}, y:{grid:{color:'#EFEFF3'}, ticks:{font:{family:'Inter', size:10}}} }
-    };
-    if(charts.vol) charts.vol.destroy();
-    charts.vol = new Chart(document.getElementById('chartVolumen'), {type:'line', data:{labels:s.labels, datasets:dsVol}, options: baseOpts});
-  }
-
-  function renderResumenMonthlyTable(){
-    // Inversión y mensajes por mes, calculados desde FB_Atlab (misma fuente que el resto del panel).
+  // Datos mes a mes compartidos por la gráfica de conversión y la tabla mensual.
+  function filasMensuales(){
     const msgsByMonth = {}, spendByMonth = {};
     FB.forEach(r=>{
       const mk = toMonthKey(parseDateFlexible(r.fecha));
@@ -654,28 +723,55 @@ function initDashboard(){
       msgsByMonth[mk] = (msgsByMonth[mk]||0) + r.msgs;
       spendByMonth[mk] = (spendByMonth[mk]||0) + r.spend;
     });
-
-    const rows = RESUMEN_MENSUAL.map(r=>{
+    return RESUMEN_MENSUAL.map(r=>{
       const msgs = msgsByMonth[r.mes] || 0;
       const spend = spendByMonth[r.mes] || 0;
+      const ventas = VENTAS_MES[r.mes] || null;
       return {
-        mes: r.mes, spend, msgs, lya: r.lya, clientes: r.clientes,
+        mes: r.mes, spend, msgs, lya: r.lya, clientes: r.clientes, ventas,
         costPerMsg: msgs ? (spend/msgs) : NaN,
         costPerCli: r.clientes ? (spend/r.clientes) : NaN,
+        costPerVenta: ventas ? (spend/ventas) : NaN,
         pctMsgLya: msgs ? (r.lya/msgs*100) : 0,
-        pctMsgCli: msgs ? (r.clientes/msgs*100) : 0,
+        pctMsgCli: msgs ? (r.clientes/msgs*100) : NaN,
+        pctMsgVenta: (msgs && ventas) ? (ventas/msgs*100) : NaN,
+        pctCliVenta: (r.clientes && ventas) ? (ventas/r.clientes*100) : NaN,
       };
     });
+  }
 
+  function renderConvMensualChart(){
+    const rows = filasMensuales().filter(r=>r.msgs>0);
+    const nul = v => isFinite(v) ? +v.toFixed(2) : null;
+    if(charts.convMensual) charts.convMensual.destroy();
+    charts.convMensual = new Chart(document.getElementById('chartConvMensual'), {type:'line', data:{
+      labels: rows.map(r=>monthLabel(r.mes)),
+      datasets:[
+        {label:'% Mensaje → Cliente', data:rows.map(r=>nul(r.pctMsgCli)), borderColor:'#1FAA59', backgroundColor:'#1FAA5920', tension:.3, pointRadius:3, borderWidth:2, spanGaps:true},
+        {label:'% Mensaje → Venta', data:rows.map(r=>nul(r.pctMsgVenta)), borderColor:'#727FED', backgroundColor:'#727FED22', tension:.3, pointRadius:3, borderWidth:2, spanGaps:true},
+      ]}, options:{
+      responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:false},
+      plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{family:'Inter', size:11}}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y===null?'—':c.parsed.y.toFixed(1)+'%')}}},
+      scales:{ x:{grid:{display:false}, ticks:{font:{family:'Inter', size:10}}}, y:{grid:{color:'#EFEFF3'}, ticks:{font:{family:'Inter', size:10}, callback:v=>v+'%'}} }
+    }});
+  }
+
+  function renderResumenMonthlyTable(){
+    const rows = filasMensuales();
+    const fmtPct = n => isFinite(n) ? n.toFixed(1)+'%' : '—';
     document.getElementById('resumenMonthlyTableHead').innerHTML =
       '<th>Mes</th><th class="num">Inversión</th><th class="num">Mensajes</th><th class="num">Costo/mensaje</th>' +
-      '<th class="num">Contactos Lya</th><th class="num">Clientes</th><th class="num">Costo/cliente</th><th class="num">% Mensaje→Cliente</th>';
+      '<th class="num">Contactos Lya</th><th class="num">Clientes</th><th class="num">Costo/cliente</th><th class="num">% Mensaje→Cliente</th>' +
+      '<th class="num">Ventas</th><th class="num">Costo/venta</th><th class="num">% Cliente→Venta</th><th class="num">% Mensaje→Venta</th>';
     document.getElementById('resumenMonthlyTable').innerHTML = rows.slice().reverse().map(r=>`
       <tr><td>${monthLabel(r.mes)}</td><td class="num">${fmtCOP(r.spend)}</td><td class="num">${fmtInt(r.msgs)}</td>
       <td class="num">${fmtCOP(r.costPerMsg)}</td><td class="num">${fmtInt(r.lya)}</td>
       <td class="num">${r.clientes>0?('<span class="etapa-badge etapa-cliente">'+fmtInt(r.clientes)+'</span>'):'—'}</td>
-      <td class="num">${fmtCOP(r.costPerCli)}</td><td class="num">${r.pctMsgCli.toFixed(1)}%</td></tr>
-    `).join('') || emptyRow(8);
+      <td class="num">${fmtCOP(r.costPerCli)}</td><td class="num">${fmtPct(r.pctMsgCli)}</td>
+      <td class="num">${r.ventas?('<span class="etapa-badge etapa-prospecto">'+fmtInt(r.ventas)+'</span>'):'—'}</td>
+      <td class="num">${fmtCOP(r.costPerVenta)}</td><td class="num">${fmtPct(r.pctCliVenta)}</td><td class="num">${fmtPct(r.pctMsgVenta)}</td></tr>
+    `).join('') || emptyRow(12);
   }
 
   function renderMensualView(){
@@ -937,10 +1033,6 @@ function initDashboard(){
   document.getElementById('dateFrom').min = globalMinDate;
   document.getElementById('dateTo').min = globalMinDate;
 
-  document.querySelectorAll('#toggleMA button').forEach(btn=>btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#toggleMA button').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-    volumeMA = parseInt(btn.dataset.ma); render();
-  }));
 
   const DETAIL_COLS = [{key:'tel',label:'Teléfono'},{key:'nombre',label:'Nombre'},{key:'_etapa',label:'Etapa',nosort:true},{key:'lya',label:'Fecha Lya'},{key:'cliente',label:'Fecha Cliente'},{key:'diasConversion',label:'Días a conversión',numeric:true}];
   let sortDetail = {col:'cliente', dir:-1};
