@@ -11,9 +11,9 @@
  * 2) Fechas con año de 2 dígitos ("30/07/26 0:00") ahora se leen bien. Antes
  *    caían a new Date() y se leían en formato gringo (mes/día) o quedaban
  *    vacías.
- * 3) El ajuste UTC → Bogotá de Lya se aplica UNA sola vez por fila. Antes,
- *    cada vez que corría el script le volvía a restar 5 horas a las fechas
- *    ya convertidas. Ahora se marca cada fila en la columna "_bogota".
+ * 3) Lya ya se sube en hora Bogotá (LYA_FECHAS_EN_UTC: false). La v4 le
+ *    restaba 5 horas en cada corrida. Si se activa el modo UTC, el ajuste se
+ *    aplica una sola vez por fila y se marca en la columna "_bogota".
  * 4) Clientes: también se normaliza DTINICIOCONTRATO (inicio de contrato).
  * 5) Los meses/fechas de las tablas resumen se escriben como texto
  *    ("2026-09"), para que Sheets no los convierta en "2026-9".
@@ -29,9 +29,11 @@
  * 5) Cohorte_Mensual: por mes de entrada a Lya, % convertido a hoy y días.
  *
  * NO TOCA la pestaña "Ventas mes" (manual) ni FB_Atlab.
+ * El tablero lee directo Lya, FB_Atlab y Ventas mes; Maestro_Cruce solo se usa
+ * en la vista Detalle (búsqueda por teléfono o nombre).
  *
- * SUPUESTO: fechas de EVO (Clientes) ya en hora Bogotá; las de Lya vienen
- * en UTC y se les resta 5 horas.
+ * SUPUESTO: fechas de EVO (Clientes) y de Lya ya en hora Bogotá. Si algún día
+ * se pega la exportación cruda de Lya (en UTC), poner LYA_FECHAS_EN_UTC: true.
  *
  * CÓMO USARLO
  * 1) Extensiones > Apps Script, pega este código (reemplaza el anterior).
@@ -50,6 +52,9 @@ var CONFIG = {
   SHEET_COHORTE_MENSUAL: 'Cohorte_Mensual',
   ZONA_HORARIA: 'America/Bogota',
   COL_MARCA_UTC: '_bogota', // marca en Lya: fila ya convertida de UTC a Bogotá
+  // false = la base de Lya que se sube ya viene en hora Bogotá (como el histórico
+  // limpio). Poner true solo si se pega la exportación cruda de Lya, que viene en UTC.
+  LYA_FECHAS_EN_UTC: false,
 };
 
 function procesarTodo() {
@@ -77,10 +82,10 @@ function normalizarFuentes_() {
   });
   if (invCli) reporte.push('Clientes ' + invCli);
 
-  var invLya = normalizarHoja_(ss, CONFIG.SHEET_LYA, {
-    telefono: ['telefono'],
-    fechasUTC: ['primera_vez', 'ultima_vez'],
-  });
+  var specLya = { telefono: ['telefono'] };
+  if (CONFIG.LYA_FECHAS_EN_UTC) specLya.fechasUTC = ['primera_vez', 'ultima_vez'];
+  else specLya.fechasLocales = ['primera_vez', 'ultima_vez'];
+  var invLya = normalizarHoja_(ss, CONFIG.SHEET_LYA, specLya);
   if (invLya) reporte.push('Lya ' + invLya);
 
   return reporte;
