@@ -122,6 +122,32 @@
   .btn-preview{border:1px solid var(--line); background:var(--paper); color:var(--ink); font-family:inherit; font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:100px; cursor:pointer;}
   .btn-preview:hover{border-color:var(--accent); color:var(--accent-dark);}
 
+  /* ANUNCIOS (mismo formato del tablero de Astor Plaza) */
+  .ads-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:6px 0 14px;}
+  .ads-head .caption{margin:0;}
+  .chk{font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer; margin-left:auto;}
+  .ad-camp{padding:16px 18px 18px; margin-top:0; margin-bottom:14px;}
+  .ad-camp-head{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+  .ad-camp-head h3{font-size:13px; font-weight:800; margin:0; text-transform:uppercase; letter-spacing:.04em;}
+  .ad-camp-head span{font-size:12px; color:var(--muted);}
+  .ad-strip{display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; scroll-snap-type:x proximity;}
+  .ad-card{flex:0 0 322px; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; display:flex; flex-direction:column; scroll-snap-align:start; background:var(--paper);}
+  .ad-prev{height:610px; background:var(--bg); overflow:hidden; display:flex; justify-content:center;}
+  .ad-prev iframe{border:0; width:320px; height:100%;}
+  .ad-prev .ad-noprev{align-self:center; font-size:12px; color:var(--muted); padding:20px; text-align:center;}
+  .ad-body{padding:10px 12px 12px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line);}
+  .ad-name{font-size:12px; font-weight:700; line-height:1.35; word-break:break-word; display:flex; justify-content:space-between; gap:8px;}
+  .ad-name a{font-weight:600; font-size:11px; color:var(--accent-dark); white-space:nowrap; text-decoration:none;}
+  .ad-sub{font-size:11.5px; color:var(--muted);}
+  .ad-nums{display:grid; grid-template-columns:repeat(3,1fr); gap:8px 6px;}
+  .nm-label{font-size:10.5px; color:var(--muted); font-weight:600;}
+  .nm-value{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .ad-share{height:4px; background:var(--bg); border-radius:999px;}
+  .ad-share div{height:100%; background:var(--accent); border-radius:999px;}
+  .ad-empty{font-size:12.5px; color:var(--muted);}
+  .tag{display:inline-block; font-size:11px; font-weight:700; padding:1px 8px; border-radius:999px; white-space:nowrap;}
+  .tag-act{background:#E7F7EE; color:#166A3C;} .tag-pau{background:var(--bg); color:var(--muted);}
+
   .search-input{width:100%; max-width:360px; padding:11px 16px; border-radius:100px; border:1px solid var(--line); font-family:inherit; font-size:13px; margin-bottom:16px; background:var(--paper);}
   .etapa-badge{font-size:11px; font-weight:700; padding:3px 9px; border-radius:100px;}
   .etapa-cliente{background:#E7F7EE; color:var(--good);}
@@ -170,6 +196,10 @@
       <div class="nav-item" data-view="campanas">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg>
         <span class="nav-tooltip">Campañas</span>
+      </div>
+      <div class="nav-item" data-view="anuncios">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span class="nav-tooltip">Anuncios</span>
       </div>
       <div class="nav-item" data-view="detalle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -359,6 +389,20 @@
       </div>
     </div>
 
+    <!-- ===================== ANUNCIOS ===================== -->
+    <div class="view" id="view-anuncios">
+      <div class="section-title">Anuncios</div>
+      <div class="ads-head">
+        <div class="caption" id="adsNote"></div>
+        <label class="chk"><input type="checkbox" id="adsTodos"> Incluir los que ya no corren</label>
+      </div>
+      <div id="adsWrap"></div>
+      <div class="funnel-note">
+        Vista previa de Instagram generada por Meta. Inversión y mensajes son de Meta Ads (FB_Atlab) en el rango elegido.
+        <b>Activo</b> = tuvo inversión en los últimos 3 días con datos. La barra muestra qué parte de la inversión de la campaña se llevó el anuncio.
+      </div>
+    </div>
+
     <!-- ===================== DETALLE ===================== -->
     <div class="view" id="view-detalle">
       <div class="section-title">Buscar en Maestro_Cruce</div>
@@ -439,6 +483,8 @@ function monthLabel(key){
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   return meses[parseInt(m)-1]+' '+y;
 }
+// La URL de vista previa llega con el & escapado a medias ("&amp&t="), y así Meta no la abre.
+function limpiarPreview(u){ u = String(u||'').trim(); return u.startsWith('http') ? u.replace(/&amp;?/g, '&') : ''; }
 function parseNum(v){ if(v===null||v===undefined||v==='') return null; const n = parseFloat(String(v).replace(',','.')); return isNaN(n)?null:n; }
 
 let MAESTRO = [], FB = [], LYA_DIAS = {}, MANUAL = {};
@@ -462,7 +508,7 @@ async function loadData(){
 
     FB = quitarEncabezado(fbRows, s=>s.toLowerCase().includes('date')).filter(r=>r[F.FECHA]).map(r=>({
       fecha: toKey(parseDateFlexible(r[F.FECHA])),
-      campana: r[F.CAMPANA], adset: r[F.ADSET], ad: r[F.AD], preview: r[F.PREVIEW],
+      campana: r[F.CAMPANA], adset: r[F.ADSET], ad: r[F.AD], preview: limpiarPreview(r[F.PREVIEW]),
       spend: parseFloat(r[F.SPEND])||0, clicks: parseInt(r[F.CLICKS])||0, msgs: parseInt(r[F.MSGS])||0,
     })).filter(r=>r.fecha);
 
@@ -647,6 +693,7 @@ function initDashboard(){
     renderResumenMonthlyTable();
     // La tabla de campañas debe pintarse SIEMPRE, incluso si las gráficas fallan.
     renderCampaignsTable(fbF);
+    renderAds(fbF);
     if(typeof Chart !== 'undefined'){
       try{ renderCampCharts(fbF, lastCampRows); } catch(err){ console.error('Error en gráficas de campañas:', err); }
     }
@@ -887,6 +934,55 @@ function initDashboard(){
     if(charts.share) charts.share.destroy();
     charts.share = new Chart(document.getElementById('chartShare'), {type:'doughnut', data:{labels:shareLabels, datasets:[{data:shareData, backgroundColor:palette, borderWidth:0}]}, options:{responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{legend:{position:'right', labels:{boxWidth:9, font:{family:'Inter', size:10}}}}}});
   }
+
+  // ---------- Anuncios ----------
+  // Las tarjetas (con su iframe) solo se rehacen si cambia la lista de anuncios; si solo cambia el rango, se actualizan los números.
+  let adsSig = '', lastFbF = [];
+  const escH = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function renderAds(fbF){
+    lastFbF = fbF;
+    const wrap = document.getElementById('adsWrap'), note = document.getElementById('adsNote');
+    const todos = document.getElementById('adsTodos').checked;
+    const key = r => r.campana + '|' + r.ad;
+    const ultimo = FB.reduce((m, r) => r.fecha > m ? r.fecha : m, '');
+    const d = new Date(ultimo + 'T00:00:00'); d.setDate(d.getDate() - 2);
+    const desdeAct = toKey(d);
+    const activos = new Set(FB.filter(r => r.fecha >= desdeAct && r.spend > 0).map(key));
+    const prev = {}, info = {};
+    FB.forEach(r => { const k = key(r); if(r.preview) prev[k] = r.preview; info[k] = info[k] || {campana:r.campana, adset:r.adset, ad:r.ad}; });
+    const por = {};
+    fbF.forEach(r => { const k = key(r), x = por[k] = por[k] || {k, ...info[k], spend:0, msgs:0}; x.spend += r.spend; x.msgs += r.msgs; });
+    activos.forEach(k => { if(!por[k]) por[k] = {k, ...info[k], spend:0, msgs:0}; });
+    const lista = Object.values(por).filter(x => activos.has(x.k) || (todos && x.spend > 0));
+    const camps = {}; lista.forEach(x => (camps[x.campana] = camps[x.campana] || []).push(x));
+    const orden = Object.keys(camps).map(c => ({c, xs: camps[c].sort((a, b) => b.spend - a.spend || a.ad.localeCompare(b.ad)), spend: camps[c].reduce((s, x) => s + x.spend, 0)}))
+      .sort((a, b) => b.spend - a.spend);
+    note.textContent = lista.length ? `${activos.size} anuncios activos · ordenados por inversión en el rango` : '';
+    if(!lista.length){ adsSig = ''; wrap.innerHTML = `<div class="chart-card ad-empty">No hay anuncios ${todos ? 'con inversión' : 'activos'} en este rango.</div>`; return; }
+    const sig = orden.map(o => o.c + ':' + o.xs.map(x => x.k).join(',')).join('/');
+    if(sig !== adsSig){
+      adsSig = sig;
+      wrap.innerHTML = orden.map(o => `<div class="chart-card ad-camp"><div class="ad-camp-head"><h3>${escH(o.c)}</h3><span data-camp="${escH(o.c)}"></span></div>
+        <div class="ad-strip">${o.xs.map(x => { const u = prev[x.k]; return `<div class="ad-card" data-k="${escH(x.k)}">
+          <div class="ad-prev">${u ? `<iframe src="${escH(u)}" loading="lazy" scrolling="no" title="${escH(x.ad)}"></iframe>` : '<span class="ad-noprev">Meta no entregó vista previa para este anuncio.</span>'}</div>
+          <div class="ad-body"><div class="ad-name"><span>${escH(x.ad)}</span>${u ? `<a href="${escH(u)}" target="_blank" rel="noopener">Abrir ↗</a>` : ''}</div>
+            <div class="ad-sub">${escH(x.adset)}</div>
+            <div data-tag></div><div class="ad-share"><div></div></div><div class="ad-nums"></div></div></div>`; }).join('')}</div></div>`).join('');
+    }
+    const cel = (l, v) => `<div><div class="nm-label">${l}</div><div class="nm-value">${v}</div></div>`;
+    orden.forEach(o => {
+      const h = [...wrap.querySelectorAll('[data-camp]')].find(e => e.dataset.camp === o.c);
+      if(h) h.textContent = `${o.xs.length} ${o.xs.length === 1 ? 'anuncio' : 'anuncios'} · ${fmtCOP(o.spend)} en el rango`;
+      o.xs.forEach(x => {
+        const c = [...wrap.querySelectorAll('.ad-card')].find(e => e.dataset.k === x.k); if(!c) return;
+        const act = activos.has(x.k);
+        c.querySelector('[data-tag]').innerHTML = `<span class="tag ${act ? 'tag-act' : 'tag-pau'}">${act ? 'Activo' : 'Ya no corre'}</span> <span class="ad-sub">${o.spend ? fmtPct(x.spend / o.spend * 100) + ' de la inversión de la campaña' : 'sin inversión en el rango'}</span>`;
+        c.querySelector('.ad-share div').style.width = (o.spend ? x.spend / o.spend * 100 : 0) + '%';
+        c.querySelector('.ad-nums').innerHTML = cel('Inversión', fmtCOP(x.spend)) + cel('Mensajes', fmtInt(x.msgs)) + cel('Costo/msg', x.msgs ? fmtCOP(x.spend / x.msgs) : '—');
+      });
+    });
+  }
+  document.getElementById('adsTodos').addEventListener('change', () => renderAds(lastFbF));
 
   function openModal(title, url){
     document.getElementById('modalTitle').textContent = title;
